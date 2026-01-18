@@ -6,6 +6,17 @@ import random
 import folium
 from streamlit_folium import st_folium
 from datetime import datetime
+# --- TEMP TIME DEBUG (ADD HERE) ---
+st.subheader("🧪 Time Debug (Temporary)")
+
+utc_time = pd.Timestamp.utcnow()  # already UTC-aware
+india_time = utc_time.tz_convert("Asia/Kolkata")
+
+st.write("SERVER TIME (UTC):", utc_time)
+st.write("INDIA TIME:", india_time)
+
+st.divider()
+# --- END DEBUG ---
 
 # ---------------- CONFIG ----------------
 SUPABASE_URL = "https://ivtjnwuhjtihosutpmss.supabase.co"

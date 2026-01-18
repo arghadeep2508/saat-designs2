@@ -4,3 +4,4 @@ pandas
 pytz
 faker
 folium
+streamlit-folium

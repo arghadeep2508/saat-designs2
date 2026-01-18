@@ -6,6 +6,7 @@ import random
 import folium
 from streamlit_folium import st_folium
 from datetime import datetime
+
 # --- TEMP TIME DEBUG (ADD HERE) ---
 st.subheader("🧪 Time Debug (Temporary)")
 
@@ -17,28 +18,38 @@ st.write("INDIA TIME:", india_time)
 
 st.divider()
 # --- END DEBUG ---
-
 # ---------------- CONFIG ----------------
 SUPABASE_URL = "https://ivtjnwuhjtihosutpmss.supabase.co"
-SUPABASE_KEY = "sb_secret_Hg_vcloiHhea1BqF4jUY6g_hEsAcIpF"  # backend key ONLY
+SUPABASE_KEY = "sb_secret_Hg_vcloiHhea1BqF4jUY6g_hEsAcIpF"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 faker = Faker("en_IN")
 
-# ---------------- LOGIN ----------------
+CITY_COORDS = {
+    "Kolkata": (22.5726, 88.3639),
+    "Salt Lake": (22.5867, 88.4171),
+    "New Town": (22.5800, 88.4700),
+    "Howrah": (22.5958, 88.2636),
+    "Mumbai": (19.0760, 72.8777),
+    "Bangalore": (12.9716, 77.5946),
+    "Pune": (18.5204, 73.8567),
+}
+
+# ---------------- PAGE ----------------
 st.set_page_config(page_title="SAAT Dashboard", layout="wide")
 
+# ---------------- LOGIN ----------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 def login():
     st.title("🔐 SAAT Internal Login")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if username == "admin" and password == "admin123":
+        if u == "admin" and p == "admin123":
             st.session_state.logged_in = True
             st.rerun()
         else:
@@ -48,14 +59,11 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# ---------------- HELPERS ----------------
+# ---------------- DATA HELPERS ----------------
 def generate_lead():
     name = faker.name()
     lead_type = random.choice(["Buy", "Rent", "Sell"])
-    location = random.choice([
-        "Kolkata", "Salt Lake", "New Town", "Rajarhat",
-        "Howrah", "Bangalore", "Mumbai", "Pune"
-    ])
+    location = random.choice(list(CITY_COORDS.keys()))
     phone = "9" + str(random.randint(100000000, 999999999))
     email = name.lower().replace(" ", ".") + "@gmail.com"
     budget = f"{random.randint(20, 90)} lakh"
@@ -74,45 +82,37 @@ def generate_lead():
     }).execute()
 
 def fetch_leads():
-    data = supabase.table("leads") \
+    res = supabase.table("leads") \
         .select("*") \
         .order("created_at", desc=True) \
         .execute()
-    return pd.DataFrame(data.data)
+    return pd.DataFrame(res.data)
 
-# ---------------- UI HEADER ----------------
-col1, col2 = st.columns([6, 1])
+# ---------------- HEADER ----------------
+c1, c2 = st.columns([6, 1])
 
-with col1:
+with c1:
     st.markdown("## 📊 SAAT Leads Dashboard")
 
-with col2:
+with c2:
     if st.button("🔴 LIVE"):
-        for _ in range(3):   # generate 3 leads per click
+        for _ in range(2):
             generate_lead()
         st.success("Live data generated")
 
-# ---------------- DATA ----------------
+# ---------------- LOAD DATA ----------------
 df = fetch_leads()
 
 if df.empty:
-    st.warning("No leads yet.")
+    st.warning("No leads found.")
     st.stop()
 
-# ---------------- FILTERS ----------------
-f1, f2 = st.columns(2)
+df["created_at"] = pd.to_datetime(df["created_at"]).dt.strftime("%d %b %Y • %I:%M %p")
 
-with f1:
-    type_filter = st.selectbox("Filter Type", ["All", "Buy", "Rent", "Sell"])
-
-with f2:
-    search = st.text_input("Search (name / phone / location)")
-
+# ---------------- FILTER ----------------
+type_filter = st.selectbox("Filter Type", ["All", "Buy", "Rent", "Sell"])
 if type_filter != "All":
     df = df[df["type"] == type_filter]
-
-if search:
-    df = df[df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)]
 
 # ---------------- TABLE ----------------
 st.dataframe(
@@ -123,17 +123,23 @@ st.dataframe(
     use_container_width=True
 )
 
-# ---------------- MAP ----------------
-st.markdown("## 🌍 Property Map (Demo)")
+# ---------------- MAP PER PERSON ----------------
+st.markdown("## 🌍 Lead Location Map")
 
-map_center = [20.5937, 78.9629]  # India
-m = folium.Map(location=map_center, zoom_start=4)
+selected_name = st.selectbox(
+    "Select Lead",
+    df["name"].tolist()
+)
 
-for _, row in df.head(20).iterrows():
-    folium.Marker(
-        location=map_center,
-        popup=f"{row['name']} – {row['location']}",
-        icon=folium.Icon(color="blue")
-    ).add_to(m)
+selected_row = df[df["name"] == selected_name].iloc[0]
+city = selected_row["location"]
+coords = CITY_COORDS.get(city, (20.5937, 78.9629))
 
-st_folium(m, height=400)
+m = folium.Map(location=coords, zoom_start=11)
+folium.Marker(
+    location=coords,
+    popup=f"{selected_row['name']} – {city}",
+    icon=folium.Icon(color="blue")
+).add_to(m)
+
+st_folium(m, height=420)

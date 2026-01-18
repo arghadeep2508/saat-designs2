@@ -2,3 +2,5 @@ streamlit
 supabase
 pandas
 pytz
+faker
+folium
